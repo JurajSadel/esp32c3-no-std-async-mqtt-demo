@@ -28,7 +28,7 @@ use embassy_time::{Duration, Timer};
 
 use embassy_executor::_export::StaticCell;
 use embassy_net::tcp::TcpSocket;
-use embassy_net::{Config, Ipv4Address, Stack, StackResources};
+use embassy_net::{Config, Stack, StackResources, dns::DnsQueryType};
 
 use heapless::String;
 use core::fmt::Write;
@@ -124,7 +124,15 @@ async fn task(stack: &'static Stack<WifiDevice<'static>>, i2c: I2C<'static, I2C0
 
         socket.set_timeout(Some(embassy_time::Duration::from_secs(10)));
 
-        let remote_endpoint = (Ipv4Address::new(52, 57, 158, 144), 1883);
+        let address = match stack.dns_query("broker.hivemq.com", DnsQueryType::A).await.map(|a| a[0]) {
+            Ok(address) => address,
+            Err(e) => {
+                println!("DNS lookup error: {e:?}");
+                continue
+            }
+        };
+
+        let remote_endpoint = (address, 1883);
         println!("connecting...");
         let connection = socket.connect(remote_endpoint).await;
         if let Err(e) = connection {
