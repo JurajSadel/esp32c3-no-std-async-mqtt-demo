@@ -2,44 +2,49 @@
 #![no_main]
 #![feature(type_alias_impl_trait)]
 
-use embedded_hal::watchdog::WatchdogDisable;
+// peripherals-related imports
+use hal::{
+    clock::{ClockControl, CpuClock},
+    i2c::I2C,
+    peripherals::{Interrupt, Peripherals, I2C0},
+    prelude::{_fugit_RateExtU32, *},
+    systimer::SystemTimer,
+    timer::TimerGroup,
+    Rng, Rtc, IO, {embassy, interrupt},
+};
 
-use esp_backtrace as _;
-use esp_println::println;
-use hal::clock::{ClockControl, CpuClock};
-use hal::i2c::I2C;
-use hal::peripherals::{Interrupt, Peripherals, I2C0};
-use hal::prelude::_fugit_RateExtU32;
-use hal::prelude::*;
-use hal::Rng;
-use hal::Rtc;
-use hal::systimer::SystemTimer;
-use hal::timer::TimerGroup;
-use hal::IO;
-use hal::{embassy, interrupt};
-
+// Wifi-related imports
 use embedded_svc::wifi::{ClientConfiguration, Configuration, Wifi};
+use esp_wifi::{
+    wifi::{WifiController, WifiDevice, WifiEvent, WifiMode, WifiState},
+    {initialize, EspWifiInitFor},
+};
 
-use esp_wifi::wifi::{WifiController, WifiDevice, WifiEvent, WifiMode, WifiState};
-use esp_wifi::{initialize, EspWifiInitFor};
-
-use embassy_executor::Executor;
+// embassy related imports
+use embassy_executor::{Executor, _export::StaticCell};
 use embassy_time::{Duration, Timer};
+use embassy_net::{
+    tcp::TcpSocket,
+    {dns::DnsQueryType, Config, Stack, StackResources},
+};
 
-use embassy_executor::_export::StaticCell;
-use embassy_net::tcp::TcpSocket;
-use embassy_net::{Config, Stack, StackResources, dns::DnsQueryType};
-
-use heapless::String;
-use core::fmt::Write;
-
+// Temperature sensor related imports
 use crate::bmp180_async::Bmp180;
 mod bmp180_async;
 
+// MQTT related imports
 use rust_mqtt::{
-    client::{client::MqttClient, client_config::{ClientConfig}},
+    client::{client::MqttClient, client_config::ClientConfig},
+    packet::v5::reason_codes::ReasonCode,
     utils::rng_generator::CountingRng,
 };
+
+// Formatting related imports
+use core::fmt::Write;
+use heapless::String;
+
+use esp_backtrace as _;
+use esp_println::println;
 
 const SSID: &str = env!("SSID");
 const PASSWORD: &str = env!("PASSWORD");
@@ -55,6 +60,8 @@ macro_rules! singleton {
     }};
 }
 
+// maintains wifi connection, when it disconnects it tries to reconnect
+// no CPU cycles wasted
 #[embassy_executor::task]
 async fn connection(mut controller: WifiController<'static>) {
     println!("start connection task");
@@ -74,9 +81,22 @@ async fn connection(mut controller: WifiController<'static>) {
                 password: PASSWORD.into(),
                 ..Default::default()
             });
-            controller.set_configuration(&client_config).unwrap();
+
+            match controller.set_configuration(&client_config) {
+                Ok(()) => {}
+                Err(e) => {
+                    println!("Failed to connect to wifi: {e:?}");
+                    continue;
+                }
+            }
             println!("Starting wifi");
-            controller.start().await.unwrap();
+            match controller.start().await {
+                Ok(()) => {}
+                Err(e) => {
+                    println!("Failed to connect to wifi: {e:?}");
+                    continue;
+                }
+            }
             println!("Wifi started!");
         }
         println!("About to connect...");
@@ -91,16 +111,19 @@ async fn connection(mut controller: WifiController<'static>) {
     }
 }
 
+// A background task, to process network events - when new packets, they need to processed, embassy-net, wraps smoltcp
 #[embassy_executor::task]
 async fn net_task(stack: &'static Stack<WifiDevice<'static>>) {
     stack.run().await
 }
 
+// our "main" task
 #[embassy_executor::task]
 async fn task(stack: &'static Stack<WifiDevice<'static>>, i2c: I2C<'static, I2C0>) {
     let mut rx_buffer = [0; 4096];
     let mut tx_buffer = [0; 4096];
 
+    //wait until wifi connected
     loop {
         if stack.is_link_up() {
             break;
@@ -111,7 +134,7 @@ async fn task(stack: &'static Stack<WifiDevice<'static>>, i2c: I2C<'static, I2C0
     println!("Waiting to get IP address...");
     loop {
         if let Some(config) = stack.config_v4() {
-            println!("Got IP: {}", config.address);
+            println!("Got IP: {}", config.address); //dhcp IP address
             break;
         }
         Timer::after(Duration::from_millis(500)).await;
@@ -124,11 +147,15 @@ async fn task(stack: &'static Stack<WifiDevice<'static>>, i2c: I2C<'static, I2C0
 
         socket.set_timeout(Some(embassy_time::Duration::from_secs(10)));
 
-        let address = match stack.dns_query("broker.hivemq.com", DnsQueryType::A).await.map(|a| a[0]) {
+        let address = match stack
+            .dns_query("broker.hivemq.com", DnsQueryType::A)
+            .await
+            .map(|a| a[0])
+        {
             Ok(address) => address,
             Err(e) => {
                 println!("DNS lookup error: {e:?}");
-                continue
+                continue;
             }
         };
 
@@ -151,16 +178,22 @@ async fn task(stack: &'static Stack<WifiDevice<'static>>, i2c: I2C<'static, I2C0
         let mut recv_buffer = [0; 80];
         let mut write_buffer = [0; 80];
 
-        let mut client = MqttClient::<_, 5, _>::new(
-            socket,
-            &mut write_buffer,
-            80,
-            &mut recv_buffer,
-            80,
-            config,
-        );
+        let mut client =
+            MqttClient::<_, 5, _>::new(socket, &mut write_buffer, 80, &mut recv_buffer, 80, config);
 
-        client.connect_to_broker().await.unwrap();
+        match client.connect_to_broker().await {
+            Ok(()) => {}
+            Err(mqtt_error) => match mqtt_error {
+                ReasonCode::NetworkError => {
+                    println!("MQTT Network Error");
+                    continue;
+                }
+                _ => {
+                    println!("Other MQTT Error");
+                    continue;
+                }
+            },
+        }
 
         let mut bmp = Bmp180::new(i2c, sleep).await;
         loop {
@@ -172,16 +205,28 @@ async fn task(stack: &'static Stack<WifiDevice<'static>>, i2c: I2C<'static, I2C0
             let mut temperature_string: String<32> = String::new();
             write!(temperature_string, "{:.2}", temperature).expect("write! failed!");
 
-            client
-            .send_message(
-                "testtopic/1",
-                temperature_string.as_bytes(),
-                rust_mqtt::packet::v5::publish_packet::QualityOfService::QoS1,
-                true,
-            )
-            .await
-            .unwrap();
-        Timer::after(Duration::from_millis(3000)).await;
+            match client
+                .send_message(
+                    "temperature/1",
+                    temperature_string.as_bytes(),
+                    rust_mqtt::packet::v5::publish_packet::QualityOfService::QoS1,
+                    true,
+                )
+                .await
+            {
+                Ok(()) => {}
+                Err(mqtt_error) => match mqtt_error {
+                    ReasonCode::NetworkError => {
+                        println!("MQTT Network Error");
+                        continue;
+                    }
+                    _ => {
+                        println!("Other MQTT Error");
+                        continue;
+                    }
+                },
+            }
+            Timer::after(Duration::from_millis(3000)).await;
         }
     }
 }
@@ -222,7 +267,7 @@ fn main() -> ! {
         system.radio_clock_control,
         &clocks,
     )
-    .unwrap();
+    .expect("Failed to initialize Wifi");
 
     embassy::init(&clocks, timer_group0.timer0);
     let io = IO::new(peripherals.GPIO, peripherals.IO_MUX);
@@ -253,7 +298,10 @@ fn main() -> ! {
         seed
     ));
 
-    interrupt::enable(Interrupt::I2C_EXT0, interrupt::Priority::Priority1).unwrap();
+    match interrupt::enable(Interrupt::I2C_EXT0, interrupt::Priority::Priority1) {
+        Ok(_) => (),
+        Err(_) => println!("Invalid Interrupt Priority Error"),
+    }
 
     let executor = EXECUTOR.init(Executor::new());
     executor.run(|spawner| {
