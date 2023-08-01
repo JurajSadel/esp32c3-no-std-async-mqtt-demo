@@ -31,6 +31,7 @@ use embassy_net::{
     tcp::TcpSocket,
     {dns::DnsQueryType, Config, Stack, StackResources},
 };
+use embassy_time::{Duration, Timer};
 
 // Temperature sensor related imports
 use crate::bmp180_async::Bmp180;
