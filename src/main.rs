@@ -22,11 +22,11 @@ use esp_wifi::{
 
 // embassy related imports
 use embassy_executor::{Executor, _export::StaticCell};
-use embassy_time::{Duration, Timer};
 use embassy_net::{
     tcp::TcpSocket,
     {dns::DnsQueryType, Config, Stack, StackResources},
 };
+use embassy_time::{Duration, Timer};
 
 // Temperature sensor related imports
 use crate::bmp180_async::Bmp180;
@@ -297,7 +297,8 @@ fn main() -> ! {
         seed
     ));
 
-    interrupt::enable(Interrupt::I2C_EXT0, interrupt::Priority::Priority1).expect("Invalid Interrupt Priority Error");
+    interrupt::enable(Interrupt::I2C_EXT0, interrupt::Priority::Priority1)
+        .expect("Invalid Interrupt Priority Error");
 
     let executor = EXECUTOR.init(Executor::new());
     executor.run(|spawner| {
