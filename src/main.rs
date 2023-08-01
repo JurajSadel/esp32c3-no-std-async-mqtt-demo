@@ -61,7 +61,6 @@ macro_rules! singleton {
 }
 
 // maintains wifi connection, when it disconnects it tries to reconnect
-// no CPU cycles wasted
 #[embassy_executor::task]
 async fn connection(mut controller: WifiController<'static>) {
     println!("start connection task");
@@ -189,7 +188,7 @@ async fn task(stack: &'static Stack<WifiDevice<'static>>, i2c: I2C<'static, I2C0
                     continue;
                 }
                 _ => {
-                    println!("Other MQTT Error");
+                    println!("Other MQTT Error: {:?}", mqtt_error);
                     continue;
                 }
             },
@@ -221,7 +220,7 @@ async fn task(stack: &'static Stack<WifiDevice<'static>>, i2c: I2C<'static, I2C0
                         continue;
                     }
                     _ => {
-                        println!("Other MQTT Error");
+                        println!("Other MQTT Error: {:?}", mqtt_error);
                         continue;
                     }
                 },
@@ -298,10 +297,7 @@ fn main() -> ! {
         seed
     ));
 
-    match interrupt::enable(Interrupt::I2C_EXT0, interrupt::Priority::Priority1) {
-        Ok(_) => (),
-        Err(_) => println!("Invalid Interrupt Priority Error"),
-    }
+    interrupt::enable(Interrupt::I2C_EXT0, interrupt::Priority::Priority1).expect("Invalid Interrupt Priority Error");
 
     let executor = EXECUTOR.init(Executor::new());
     executor.run(|spawner| {
