@@ -83,6 +83,7 @@ async fn connection(mut controller: WifiController<'static>) {
                 ssid: "Wokwi-GUEST".into(),
                 password: "".into(),
                 auth_method: embedded_svc::wifi::AuthMethod::None,
+                channel: Some(6),
                 ..Default::default()
             });
 
@@ -236,7 +237,8 @@ async fn task(stack: &'static Stack<WifiDevice<'static>>, i2c: I2C<'static, I2C0
 
 #[entry]
 fn main() -> ! {
-    esp_println::logger::init_logger_from_env();
+    // esp_println::logger::init_logger_from_env();
+    esp_println::logger::init_logger(log::LevelFilter::Trace);
 
     let peripherals = Peripherals::take();
     let mut system = peripherals.SYSTEM.split();

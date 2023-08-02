@@ -7,7 +7,7 @@ license = "MIT OR Apache-2.0"
 
 [dependencies]
 hal = { package = "esp32c3-hal", version = "0.10.0", features = ["embassy", "async", "embassy-time-timg0"] }
-esp-wifi = { git = "https://github.com/esp-rs/esp-wifi", rev = "68dc11bbb2c0efa29c4acbbf134d6f142441065e", features = ["esp32c3", "async", "embassy-net", "embedded-svc", "wifi", "ipv6"] }
+esp-wifi = { git = "https://github.com/esp-rs/esp-wifi", rev = "68dc11bbb2c0efa29c4acbbf134d6f142441065e", features = ["esp32c3", "async", "embassy-net", "embedded-svc", "wifi", "ipv6", "wifi-logs"] }
 log = "0.4.16"
 nb = "1.0.0"
 embedded-io = "0.4.0"
