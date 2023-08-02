@@ -68,7 +68,6 @@ macro_rules! singleton {
 // maintains wifi connection, when it disconnects it tries to reconnect
 #[embassy_executor::task]
 async fn connection(mut controller: WifiController<'static>) {
-    println!("start connection task");
     println!("Device capabilities: {:?}", controller.get_capabilities());
     loop {
         match esp_wifi::wifi::get_wifi_state() {
@@ -81,8 +80,9 @@ async fn connection(mut controller: WifiController<'static>) {
         }
         if !matches!(controller.is_started(), Ok(true)) {
             let client_config = Configuration::Client(ClientConfiguration {
-                ssid: SSID.into(),
-                password: PASSWORD.into(),
+                ssid: "Wokwi-GUEST".into(),
+                password: "".into(),
+                auth_method: embedded_svc::wifi::AuthMethod::None,
                 ..Default::default()
             });
 
@@ -115,7 +115,6 @@ async fn connection(mut controller: WifiController<'static>) {
     }
 }
 
-// A background task, to process network events - when new packets, they need to processed, embassy-net, wraps smoltcp
 #[embassy_executor::task]
 async fn net_task(stack: &'static Stack<WifiDevice<'static>>) {
     stack.run().await
@@ -211,7 +210,7 @@ async fn task(stack: &'static Stack<WifiDevice<'static>>, i2c: I2C<'static, I2C0
 
             match client
                 .send_message(
-                    "temperature/1",
+                    "TeMpErAtUrE/1",
                     temperature_string.as_bytes(),
                     rust_mqtt::packet::v5::publish_packet::QualityOfService::QoS1,
                     true,

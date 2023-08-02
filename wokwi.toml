@@ -1,0 +1,5 @@
+[wokwi]
+version = 1
+gdbServerPort = 3333
+elf = "target/riscv32imc-unknown-none-elf/release/rust_no_std_async_mqtt_demo"
+firmware = "target/riscv32imc-unknown-none-elf/release/rust_no_std_async_mqtt_demo"
