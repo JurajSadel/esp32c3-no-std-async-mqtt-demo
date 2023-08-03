@@ -66,13 +66,10 @@ async fn connection(mut controller: WifiController<'static>) {
     println!("start connection task");
     println!("Device capabilities: {:?}", controller.get_capabilities());
     loop {
-        match esp_wifi::wifi::get_wifi_state() {
-            WifiState::StaConnected => {
-                // wait until we're no longer connected
-                controller.wait_for_event(WifiEvent::StaDisconnected).await;
-                Timer::after(Duration::from_millis(5000)).await
-            }
-            _ => {}
+        if let WifiState::StaConnected = esp_wifi::wifi::get_wifi_state() {
+            // wait until we're no longer connected
+            controller.wait_for_event(WifiEvent::StaDisconnected).await;
+            Timer::after(Duration::from_millis(5000)).await
         }
         if !matches!(controller.is_started(), Ok(true)) {
             let client_config = Configuration::Client(ClientConfiguration {
@@ -142,7 +139,7 @@ async fn task(stack: &'static Stack<WifiDevice<'static>>, i2c: I2C<'static, I2C0
     loop {
         Timer::after(Duration::from_millis(1_000)).await;
 
-        let mut socket = TcpSocket::new(&stack, &mut rx_buffer, &mut tx_buffer);
+        let mut socket = TcpSocket::new(stack, &mut rx_buffer, &mut tx_buffer);
 
         socket.set_timeout(Some(embassy_time::Duration::from_secs(10)));
 
@@ -303,8 +300,8 @@ fn main() -> ! {
     let executor = EXECUTOR.init(Executor::new());
     executor.run(|spawner| {
         spawner.spawn(connection(controller)).ok();
-        spawner.spawn(net_task(&stack)).ok();
-        spawner.spawn(task(&stack, i2c0)).ok();
+        spawner.spawn(net_task(stack)).ok();
+        spawner.spawn(task(stack, i2c0)).ok();
     });
 }
 
