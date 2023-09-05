@@ -2,6 +2,10 @@
 
 This is a simple demo that we will use on the upcoming Espressif DevCon23.
 
+ESP32 variant: https://github.com/JurajSadel/esp32-no-std-async-mqtt-demo
+
+ESP32S3 variant: https://github.com/JurajSadel/esp32s3-no-std-async-mqtt-demo
+
 ## What it does
 The application measures temperature (`BMP180`) and sends the results to `MQTT` via WiFi - everything is done asynchronously.
 
