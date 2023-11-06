@@ -6,22 +6,22 @@ edition = "2021"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-hal = { package = "esp32c3-hal", version = "0.10.0", features = ["embassy", "async", "embassy-time-timg0"] }
-esp-wifi = { git = "https://github.com/esp-rs/esp-wifi", rev = "68dc11bbb2c0efa29c4acbbf134d6f142441065e", features = ["esp32c3", "async", "embassy-net", "embedded-svc", "wifi", "ipv6"] }
+hal = { package = "esp32c3-hal", version = "0.13.0", features = ["embassy", "async", "embassy-time-timg0"] }
+esp-wifi = { git = "https://github.com/esp-rs/esp-wifi", rev = "9db53d3", features = ["esp32c3", "async", "embassy-net", "embedded-svc", "wifi", "ipv6"] }
 log = "0.4.16"
 nb = "1.0.0"
 embedded-io = "0.4.0"
 heapless = "0.7.16"
-esp-backtrace = { version = "0.7.0", features = ["esp32c3", "panic-handler", "exception-handler", "print-uart"] }
-esp-println       = { version = "0.5.0", features = ["esp32c3","log"] }
-embedded-svc = { version = "0.25.0", default-features = false}
+esp-backtrace = { version = "0.9.0", features = ["esp32c3", "panic-handler", "exception-handler", "print-uart"] }
+esp-println       = { version = "0.7.0", features = ["esp32c3","log"] }
+embedded-svc = { version = "0.26.2", default-features = false}
 embassy-net = { version = "0.1.0", features = ["nightly", "tcp", "udp", "dhcpv4", "medium-ethernet", "proto-ipv6", "log", "dns"] }
-embassy-executor  = { version = "0.2.0", features = ["nightly", "integrated-timers", "arch-riscv32", "executor-thread"] }
-embassy-time       = { version = "0.1.1", features = ["nightly"] }
+embassy-executor  = { version = "0.3.0", features = ["nightly", "integrated-timers", "arch-riscv32", "executor-thread"] }
+embassy-time       = { version = "0.1.5", features = ["nightly"] }
 embedded-hal       = { version = "0.2.7", features = ["unproven"] }
-embedded-hal-1     = { version = "=1.0.0-alpha.10", package = "embedded-hal" }
-embedded-hal-async = { version = "=0.2.0-alpha.1" }
-embedded-hal-nb    = { version = "=1.0.0-alpha.2" }
+embedded-hal-1     = { version = "=1.0.0-rc.1", package = "embedded-hal" }
+embedded-hal-async = { version = "=1.0.0-rc.1" }
+embedded-hal-nb    = { version = "=1.0.0-rc.1" }
 embedded-can       = { version = "0.4.1" }
 static_cell       = "1.1.0"
 rust-mqtt = { version = "0.1.5", default-features = false }
