@@ -235,23 +235,15 @@ fn main() -> ! {
     esp_println::logger::init_logger_from_env();
 
     let peripherals = Peripherals::take();
-    let mut system = peripherals.SYSTEM.split();
+    let system = peripherals.SYSTEM.split();
     let clocks = ClockControl::configure(system.clock_control, CpuClock::Clock160MHz).freeze();
 
     // Disable the watchdog timers. For the ESP32-C3, this includes the Super WDT,
     // the RTC WDT, and the TIMG WDTs.
     let mut rtc = Rtc::new(peripherals.RTC_CNTL);
-    let timer_group0 = TimerGroup::new(
-        peripherals.TIMG0,
-        &clocks,
-        &mut system.peripheral_clock_control,
-    );
+    let timer_group0 = TimerGroup::new(peripherals.TIMG0, &clocks);
     let mut wdt0 = timer_group0.wdt;
-    let timer_group1 = TimerGroup::new(
-        peripherals.TIMG1,
-        &clocks,
-        &mut system.peripheral_clock_control,
-    );
+    let timer_group1 = TimerGroup::new(peripherals.TIMG1, &clocks);
     let mut wdt1 = timer_group1.wdt;
 
     rtc.swd.disable();
@@ -271,8 +263,12 @@ fn main() -> ! {
     embassy::init(&clocks, timer_group0.timer0);
     let io = IO::new(peripherals.GPIO, peripherals.IO_MUX);
 
-    let (wifi, _) = peripherals.RADIO.split();
-    let (wifi_interface, controller) = esp_wifi::wifi::new_with_mode(&init, wifi, WifiMode::Sta);
+    let wifi = peripherals.WIFI;
+    let (wifi_interface, controller) =
+        match esp_wifi::wifi::new_with_mode(&init, wifi, WifiMode::Sta) {
+            Ok((wifi_interface, controller)) => (wifi_interface, controller),
+            Err(..) => panic!("WiFi mode Error!"),
+        };
 
     // Create a new peripheral object with the described wiring
     // and standard I2C clock speed
@@ -281,7 +277,6 @@ fn main() -> ! {
         io.pins.gpio1,
         io.pins.gpio2,
         100u32.kHz(),
-        &mut system.peripheral_clock_control,
         &clocks,
     );
 
