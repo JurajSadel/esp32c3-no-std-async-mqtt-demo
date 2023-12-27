@@ -1,0 +1,41 @@
+---
+name: Continuous Integration
+
+on:
+  push:
+    paths-ignore:
+      - "**/README.md"
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+  SSID: ssid
+  PASSWORD: password
+
+jobs:
+  continuous-integration:
+    name: Cargo ${{ matrix.action.command }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        action:
+          - command: build
+            args: --release
+          - command: fmt
+            args: --all -- --check
+          - command: clippy
+            args: --all-features --workspace -- -D warnings
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Setup | Rust
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: nightly
+          targets: riscv32imc-unknown-none-elf
+          components: rustfmt, clippy, rust-src
+      - name: Enable caching
+        uses: Swatinem/rust-cache@v2
+      - name: Run Cargo command
+        run: cargo ${{ matrix.action.command }} ${{ matrix.action.args }}
