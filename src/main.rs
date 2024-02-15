@@ -6,7 +6,7 @@
 use hal::{
     clock::{ClockControl, CpuClock},
     i2c::I2C,
-    peripherals::{Interrupt, Peripherals, I2C0},
+    peripherals::{Interrupt, Peripherals},
     prelude::{_fugit_RateExtU32, *},
     systimer::SystemTimer,
     timer::TimerGroup,
@@ -16,12 +16,12 @@ use hal::{
 // Wifi-related imports
 use embedded_svc::wifi::{ClientConfiguration, Configuration, Wifi};
 use esp_wifi::{
-    wifi::{WifiController, WifiDevice, WifiEvent, WifiMode, WifiState},
+    wifi::{WifiController, WifiDevice, WifiEvent, WifiStaDevice, WifiState},
     {initialize, EspWifiInitFor},
 };
 
 // embassy related imports
-use embassy_executor::{Executor, _export::StaticCell};
+use embassy_executor::Spawner;
 use embassy_net::{
     tcp::TcpSocket,
     {dns::DnsQueryType, Config, Stack, StackResources},
@@ -43,22 +43,13 @@ use rust_mqtt::{
 use core::fmt::Write;
 use heapless::String;
 
+use static_cell::make_static;
+
 use esp_backtrace as _;
 use esp_println::println;
 
 const SSID: &str = env!("SSID");
 const PASSWORD: &str = env!("PASSWORD");
-
-static EXECUTOR: StaticCell<Executor> = StaticCell::new();
-
-macro_rules! singleton {
-    ($val:expr) => {{
-        type T = impl Sized;
-        static STATIC_CELL: StaticCell<T> = StaticCell::new();
-        let (x,) = STATIC_CELL.init(($val,));
-        x
-    }};
-}
 
 // maintains wifi connection, when it disconnects it tries to reconnect
 #[embassy_executor::task]
@@ -76,26 +67,13 @@ async fn connection(mut controller: WifiController<'static>) {
         }
         if !matches!(controller.is_started(), Ok(true)) {
             let client_config = Configuration::Client(ClientConfiguration {
-                ssid: SSID.into(),
-                password: PASSWORD.into(),
+                ssid: SSID.try_into().unwrap(),
+                password: PASSWORD.try_into().unwrap(),
                 ..Default::default()
             });
-
-            match controller.set_configuration(&client_config) {
-                Ok(()) => {}
-                Err(e) => {
-                    println!("Failed to connect to wifi: {e:?}");
-                    continue;
-                }
-            }
+            controller.set_configuration(&client_config).unwrap();
             println!("Starting wifi");
-            match controller.start().await {
-                Ok(()) => {}
-                Err(e) => {
-                    println!("Failed to connect to wifi: {e:?}");
-                    continue;
-                }
-            }
+            controller.start().await.unwrap();
             println!("Wifi started!");
         }
         println!("About to connect...");
@@ -112,13 +90,64 @@ async fn connection(mut controller: WifiController<'static>) {
 
 // A background task, to process network events - when new packets, they need to processed, embassy-net, wraps smoltcp
 #[embassy_executor::task]
-async fn net_task(stack: &'static Stack<WifiDevice<'static>>) {
+async fn net_task(stack: &'static Stack<WifiDevice<'static, WifiStaDevice>>) {
     stack.run().await
 }
 
-// our "main" task
-#[embassy_executor::task]
-async fn task(stack: &'static Stack<WifiDevice<'static>>, i2c: I2C<'static, I2C0>) {
+#[main]
+async fn main(spawner: Spawner) -> ! {
+    esp_println::logger::init_logger_from_env();
+
+    let peripherals = Peripherals::take();
+    let system = peripherals.SYSTEM.split();
+    let clocks = ClockControl::configure(system.clock_control, CpuClock::Clock160MHz).freeze();
+
+    let timer_group0 = TimerGroup::new(peripherals.TIMG0, &clocks);
+
+    let init = initialize(
+        EspWifiInitFor::Wifi,
+        SystemTimer::new(peripherals.SYSTIMER).alarm0,
+        Rng::new(peripherals.RNG),
+        system.radio_clock_control,
+        &clocks,
+    )
+    .expect("Failed to initialize Wifi");
+
+    embassy::init(&clocks, timer_group0);
+    let io = IO::new(peripherals.GPIO, peripherals.IO_MUX);
+
+    let wifi = peripherals.WIFI;
+    let (wifi_interface, controller) =
+        esp_wifi::wifi::new_with_mode(&init, wifi, WifiStaDevice).unwrap();
+
+    // Create a new peripheral object with the described wiring
+    // and standard I2C clock speed
+    let i2c0 = I2C::new(
+        peripherals.I2C0,
+        io.pins.gpio1,
+        io.pins.gpio2,
+        100u32.kHz(),
+        &clocks,
+    );
+
+    let config = Config::dhcpv4(Default::default());
+
+    let seed = 1234; // very random, very secure seed
+
+    // Init network stack
+    let stack = &*make_static!(Stack::new(
+        wifi_interface,
+        config,
+        make_static!(StackResources::<3>::new()),
+        seed
+    ));
+
+    interrupt::enable(Interrupt::I2C_EXT0, interrupt::Priority::Priority1)
+        .expect("Invalid Interrupt Priority Error");
+
+    spawner.spawn(connection(controller)).ok();
+    spawner.spawn(net_task(&stack)).ok();
+
     let mut rx_buffer = [0; 4096];
     let mut tx_buffer = [0; 4096];
 
@@ -194,7 +223,7 @@ async fn task(stack: &'static Stack<WifiDevice<'static>>, i2c: I2C<'static, I2C0
             },
         }
 
-        let mut bmp = Bmp180::new(i2c, sleep).await;
+        let mut bmp = Bmp180::new(i2c0, sleep).await;
         loop {
             bmp.measure().await;
             let temperature = bmp.get_temperature();
@@ -228,68 +257,6 @@ async fn task(stack: &'static Stack<WifiDevice<'static>>, i2c: I2C<'static, I2C0
             Timer::after(Duration::from_millis(3000)).await;
         }
     }
-}
-
-#[entry]
-fn main() -> ! {
-    esp_println::logger::init_logger_from_env();
-
-    let peripherals = Peripherals::take();
-    let system = peripherals.SYSTEM.split();
-    let clocks = ClockControl::configure(system.clock_control, CpuClock::Clock160MHz).freeze();
-
-    let timer_group0 = TimerGroup::new(peripherals.TIMG0, &clocks);
-
-    let init = initialize(
-        EspWifiInitFor::Wifi,
-        SystemTimer::new(peripherals.SYSTIMER).alarm0,
-        Rng::new(peripherals.RNG),
-        system.radio_clock_control,
-        &clocks,
-    )
-    .expect("Failed to initialize Wifi");
-
-    embassy::init(&clocks, timer_group0.timer0);
-    let io = IO::new(peripherals.GPIO, peripherals.IO_MUX);
-
-    let wifi = peripherals.WIFI;
-    let (wifi_interface, controller) =
-        match esp_wifi::wifi::new_with_mode(&init, wifi, WifiMode::Sta) {
-            Ok((wifi_interface, controller)) => (wifi_interface, controller),
-            Err(..) => panic!("WiFi mode Error!"),
-        };
-
-    // Create a new peripheral object with the described wiring
-    // and standard I2C clock speed
-    let i2c0 = I2C::new(
-        peripherals.I2C0,
-        io.pins.gpio1,
-        io.pins.gpio2,
-        100u32.kHz(),
-        &clocks,
-    );
-
-    let config = Config::dhcpv4(Default::default());
-
-    let seed = 1234; // very random, very secure seed
-
-    // Init network stack
-    let stack = &*singleton!(Stack::new(
-        wifi_interface,
-        config,
-        singleton!(StackResources::<3>::new()),
-        seed
-    ));
-
-    interrupt::enable(Interrupt::I2C_EXT0, interrupt::Priority::Priority1)
-        .expect("Invalid Interrupt Priority Error");
-
-    let executor = EXECUTOR.init(Executor::new());
-    executor.run(|spawner| {
-        spawner.spawn(connection(controller)).ok();
-        spawner.spawn(net_task(&stack)).ok();
-        spawner.spawn(task(&stack, i2c0)).ok();
-    });
 }
 
 pub async fn sleep(millis: u32) {
