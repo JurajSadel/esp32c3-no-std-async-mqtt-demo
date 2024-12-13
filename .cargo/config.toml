@@ -3,11 +3,10 @@ runner = "espflash flash --monitor"
 rustflags = [
   "-C", "link-arg=-Tlinkall.x",
   "-C", "force-frame-pointers",
-  "-C", "link-arg=-Trom_functions.x",
 ]
 
 [build]
 target = "riscv32imc-unknown-none-elf"
 
 [unstable]
-build-std = [ "core" ]
+build-std = [ "alloc", "core" ]
