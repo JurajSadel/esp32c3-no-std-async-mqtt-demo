@@ -45,7 +45,7 @@ use core::fmt::Write;
 use heapless::String;
 
 use esp_backtrace as _;
-use log::info;
+use log::{info, error, debug};
 
 const SSID: &str = env!("SSID");
 const PASSWORD: &str = env!("PASSWORD");
@@ -63,7 +63,7 @@ macro_rules! mk_static {
 #[embassy_executor::task]
 async fn connection(mut controller: WifiController<'static>) {
     info!("start connection task");
-    info!("Device capabilities: {:?}", controller.capabilities());
+    debug!("Device capabilities: {:?}", controller.capabilities());
     loop {
         match esp_wifi::wifi::wifi_state() {
             WifiState::StaConnected => {
@@ -89,7 +89,7 @@ async fn connection(mut controller: WifiController<'static>) {
         match controller.connect_async().await {
             Ok(_) => info!("Wifi connected!"),
             Err(e) => {
-                info!("Failed to connect to wifi: {e:?}");
+                error!("Failed to connect to wifi: {e:?}");
                 Timer::after(Duration::from_millis(5000)).await
             }
         }
@@ -188,7 +188,7 @@ async fn main(spawner: Spawner) -> ! {
         {
             Ok(address) => address,
             Err(e) => {
-                info!("DNS lookup error: {e:?}");
+                error!("DNS lookup error: {e:?}");
                 continue;
             }
         };
@@ -197,7 +197,7 @@ async fn main(spawner: Spawner) -> ! {
         info!("connecting...");
         let connection = socket.connect(remote_endpoint).await;
         if let Err(e) = connection {
-            info!("connect error: {:?}", e);
+            error!("connect error: {:?}", e);
             continue;
         }
         info!("connected!");
@@ -219,11 +219,11 @@ async fn main(spawner: Spawner) -> ! {
             Ok(()) => {}
             Err(mqtt_error) => match mqtt_error {
                 ReasonCode::NetworkError => {
-                    info!("MQTT Network Error");
+                    error!("MQTT Network Error");
                     continue;
                 }
                 _ => {
-                    info!("Other MQTT Error: {:?}", mqtt_error);
+                    error!("Other MQTT Error: {:?}", mqtt_error);
                     continue;
                 }
             },
@@ -251,11 +251,11 @@ async fn main(spawner: Spawner) -> ! {
                 Ok(()) => {}
                 Err(mqtt_error) => match mqtt_error {
                     ReasonCode::NetworkError => {
-                        info!("MQTT Network Error");
+                        error!("MQTT Network Error");
                         continue;
                     }
                     _ => {
-                        info!("Other MQTT Error: {:?}", mqtt_error);
+                        error!("Other MQTT Error: {:?}", mqtt_error);
                         continue;
                     }
                 },
