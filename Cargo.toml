@@ -6,25 +6,41 @@ edition = "2021"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-hal = { package = "esp32c3-hal", version = "0.15.0", features = ["embassy", "async", "embassy-executor-thread", "embassy-time-timg0"] }
-esp-wifi = { version = "0.3.0", features = ["esp32c3", "async", "embassy-net", "wifi", "ipv6"] }
-log = "0.4.16"
-nb = "1.0.0"
-embedded-io = "0.6.1"
+esp-hal = { version = "0.22.0", features = [
+    "esp32c3",
+] }
+esp-wifi = { version = "0.11.0", default-features = false, features = [
+    "esp32c3",
+    "utils",
+    "wifi",
+    "esp-alloc",
+    "log",
+] }
+esp-alloc = { version = "0.5.0" }
+log = "0.4.22"
 heapless = "0.8.0"
-esp-backtrace = { version = "0.10.0", features = ["esp32c3", "panic-handler", "exception-handler", "print-uart"] }
-esp-println       = { version = "0.9.0", features = ["esp32c3","log"] }
-embedded-svc = { version = "0.27.0", default-features = false}
-embassy-net = { version = "0.4.0", features = ["tcp", "udp", "dhcpv4", "medium-ethernet", "proto-ipv6", "log", "dns"] }
-embassy-executor = { version = "0.5.0", features = [
+esp-backtrace = { version = "0.14.2", features = [
+    "esp32c3",
+    "exception-handler",
+    "panic-handler",
+    "println",
+] }
+esp-hal-embassy = { version = "0.5.0", features = ["esp32c3"] }
+esp-println = { version = "0.12.0", features = ["esp32c3", "log"] }
+embassy-net = { version = "0.4.0", features = [
+    "tcp",
+    "udp",
+    "dhcpv4",
+    "medium-ethernet",
+    "proto-ipv6",
+    "log",
+    "dns",
+] }
+embassy-executor = { version = "0.6.3", features = [
     "nightly",
     "integrated-timers",
 ] }
-embassy-time       = { version = "0.3.0" }
-embedded-hal       = { version = "0.2.7", features = ["unproven"] }
-embedded-hal-1     = { version = "1.0.0", package = "embedded-hal" }
+embassy-time = { version = "0.3.2" }
 embedded-hal-async = { version = "1.0.0" }
-embedded-hal-nb    = { version = "1.0.0" }
-embedded-can       = { version = "0.4.1" }
 static_cell = { version = "2.0", features = ["nightly"] }
 rust-mqtt = { version = "0.3.0", default-features = false }
