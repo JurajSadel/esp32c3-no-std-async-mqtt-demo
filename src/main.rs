@@ -25,7 +25,7 @@ use esp_wifi::{
 use embassy_executor::Spawner;
 use embassy_net::{
     tcp::TcpSocket,
-    {dns::DnsQueryType, Config as conf, Stack, StackResources},
+    {dns::DnsQueryType, Config as EmbassyNetConfig, Stack, StackResources},
 };
 use embassy_time::{Duration, Timer};
 
@@ -136,7 +136,7 @@ async fn main(spawner: Spawner) -> ! {
         .with_scl(peripherals.GPIO2)
         .into_async();
 
-    let config = conf::dhcpv4(Default::default());
+    let config = EmbassyNetConfig::dhcpv4(Default::default());
 
     let seed = (rng.random() as u64) << 32 | rng.random() as u64;
 
