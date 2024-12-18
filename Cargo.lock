@@ -410,18 +410,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "embedded-svc"
-version = "0.28.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7b85590a7a120e370bed5b6bc2b399b345c60d4c749d3bc06039472da37b9893"
-dependencies = [
- "embedded-io",
- "embedded-io-async",
- "enumset",
- "heapless",
-]
-
-[[package]]
 name = "enum-as-inner"
 version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1100,13 +1088,7 @@ dependencies = [
  "embassy-executor",
  "embassy-net",
  "embassy-time",
- "embedded-can",
- "embedded-hal 0.2.7",
- "embedded-hal 1.0.0",
  "embedded-hal-async",
- "embedded-hal-nb",
- "embedded-io",
- "embedded-svc",
  "esp-alloc",
  "esp-backtrace",
  "esp-hal",
@@ -1115,7 +1097,6 @@ dependencies = [
  "esp-wifi",
  "heapless",
  "log",
- "nb 1.1.0",
  "rust-mqtt",
  "static_cell",
 ]

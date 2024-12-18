@@ -45,7 +45,7 @@ use core::fmt::Write;
 use heapless::String;
 
 use esp_backtrace as _;
-use esp_println::println;
+use log::info;
 
 const SSID: &str = env!("SSID");
 const PASSWORD: &str = env!("PASSWORD");
@@ -62,8 +62,8 @@ macro_rules! mk_static {
 // maintains wifi connection, when it disconnects it tries to reconnect
 #[embassy_executor::task]
 async fn connection(mut controller: WifiController<'static>) {
-    println!("start connection task");
-    println!("Device capabilities: {:?}", controller.capabilities());
+    info!("start connection task");
+    info!("Device capabilities: {:?}", controller.capabilities());
     loop {
         match esp_wifi::wifi::wifi_state() {
             WifiState::StaConnected => {
@@ -80,16 +80,16 @@ async fn connection(mut controller: WifiController<'static>) {
                 ..Default::default()
             });
             controller.set_configuration(&client_config).unwrap();
-            println!("Starting wifi");
+            info!("Starting wifi");
             controller.start_async().await.unwrap();
-            println!("Wifi started!");
+            info!("Wifi started!");
         }
-        println!("About to connect...");
+        info!("About to connect...");
 
         match controller.connect_async().await {
-            Ok(_) => println!("Wifi connected!"),
+            Ok(_) => info!("Wifi connected!"),
             Err(e) => {
-                println!("Failed to connect to wifi: {e:?}");
+                info!("Failed to connect to wifi: {e:?}");
                 Timer::after(Duration::from_millis(5000)).await
             }
         }
@@ -165,10 +165,10 @@ async fn main(spawner: Spawner) -> ! {
         Timer::after(Duration::from_millis(500)).await;
     }
 
-    println!("Waiting to get IP address...");
+    info!("Waiting to get IP address...");
     loop {
         if let Some(config) = stack.config_v4() {
-            println!("Got IP: {}", config.address); //dhcp IP address
+            info!("Got IP: {}", config.address); //dhcp IP address
             break;
         }
         Timer::after(Duration::from_millis(500)).await;
@@ -188,19 +188,19 @@ async fn main(spawner: Spawner) -> ! {
         {
             Ok(address) => address,
             Err(e) => {
-                println!("DNS lookup error: {e:?}");
+                info!("DNS lookup error: {e:?}");
                 continue;
             }
         };
 
         let remote_endpoint = (address, 1883);
-        println!("connecting...");
+        info!("connecting...");
         let connection = socket.connect(remote_endpoint).await;
         if let Err(e) = connection {
-            println!("connect error: {:?}", e);
+            info!("connect error: {:?}", e);
             continue;
         }
-        println!("connected!");
+        info!("connected!");
 
         let mut config = ClientConfig::new(
             rust_mqtt::client::client_config::MqttVersion::MQTTv5,
@@ -219,11 +219,11 @@ async fn main(spawner: Spawner) -> ! {
             Ok(()) => {}
             Err(mqtt_error) => match mqtt_error {
                 ReasonCode::NetworkError => {
-                    println!("MQTT Network Error");
+                    info!("MQTT Network Error");
                     continue;
                 }
                 _ => {
-                    println!("Other MQTT Error: {:?}", mqtt_error);
+                    info!("Other MQTT Error: {:?}", mqtt_error);
                     continue;
                 }
             },
@@ -233,7 +233,7 @@ async fn main(spawner: Spawner) -> ! {
         loop {
             bmp.measure().await;
             let temperature = bmp.get_temperature();
-            println!("Current temperature: {}", temperature);
+            info!("Current temperature: {}", temperature);
 
             // Convert temperature into String
             let mut temperature_string: String<32> = String::new();
@@ -251,11 +251,11 @@ async fn main(spawner: Spawner) -> ! {
                 Ok(()) => {}
                 Err(mqtt_error) => match mqtt_error {
                     ReasonCode::NetworkError => {
-                        println!("MQTT Network Error");
+                        info!("MQTT Network Error");
                         continue;
                     }
                     _ => {
-                        println!("Other MQTT Error: {:?}", mqtt_error);
+                        info!("Other MQTT Error: {:?}", mqtt_error);
                         continue;
                     }
                 },
