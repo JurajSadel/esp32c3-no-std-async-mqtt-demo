@@ -1,6 +1,6 @@
 [target.riscv32imc-unknown-none-elf]
 runner = "espflash flash --monitor"
-rustflags = ["-C", "link-arg=-Tlinkall.x", "-C", "force-frame-pointers"]
+rustflags = ["-C", "link-arg=-Tlinkall.x"]
 
 [build]
 target = "riscv32imc-unknown-none-elf"
