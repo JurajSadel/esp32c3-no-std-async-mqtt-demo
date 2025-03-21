@@ -1,6 +1,5 @@
 #![no_std]
 #![no_main]
-#![feature(impl_trait_in_assoc_type)]
 
 // peripherals-related imports
 use esp_alloc as _;
@@ -8,16 +7,12 @@ use esp_hal::{
     clock::CpuClock,
     i2c::master::{Config, I2c},
     rng::Rng,
-    timer::systimer::{SystemTimer, Target},
     timer::timg::TimerGroup,
 };
 
 use esp_wifi::{
     init,
-    wifi::{
-        ClientConfiguration, Configuration, WifiController, WifiDevice, WifiEvent, WifiStaDevice,
-        WifiState,
-    },
+    wifi::{ClientConfiguration, Configuration, WifiController, WifiDevice, WifiEvent, WifiState},
     EspWifiController,
 };
 
@@ -25,7 +20,8 @@ use esp_wifi::{
 use embassy_executor::Spawner;
 use embassy_net::{
     tcp::TcpSocket,
-    {dns::DnsQueryType, Config as EmbassyNetConfig, Stack, StackResources},
+    Runner,
+    {dns::DnsQueryType, Config as EmbassyNetConfig, StackResources},
 };
 use embassy_time::{Duration, Timer};
 
@@ -45,7 +41,7 @@ use core::fmt::Write;
 use heapless::String;
 
 use esp_backtrace as _;
-use log::{info, error, debug};
+use log::{debug, error, info};
 
 const SSID: &str = env!("SSID");
 const PASSWORD: &str = env!("PASSWORD");
@@ -98,61 +94,54 @@ async fn connection(mut controller: WifiController<'static>) {
 
 // A background task, to process network events - when new packets, they need to processed, embassy-net, wraps smoltcp
 #[embassy_executor::task]
-async fn net_task(stack: &'static Stack<WifiDevice<'static, WifiStaDevice>>) {
-    stack.run().await
+async fn net_task(mut runner: Runner<'static, WifiDevice<'static>>) {
+    runner.run().await
 }
 
 #[esp_hal_embassy::main]
 async fn main(spawner: Spawner) -> ! {
     esp_println::logger::init_logger_from_env();
+    let config = esp_hal::Config::default().with_cpu_clock(CpuClock::max());
+    let peripherals = esp_hal::init(config);
 
-    let peripherals = esp_hal::init({
-        let mut config = esp_hal::Config::default();
-        config.cpu_clock = CpuClock::max();
-        config
-    });
-
-    esp_alloc::heap_allocator!(72 * 1024);
+    esp_alloc::heap_allocator!(size: 72 * 1024);
 
     let timg0 = TimerGroup::new(peripherals.TIMG0);
     let mut rng = Rng::new(peripherals.RNG);
 
-    let init = &*mk_static!(
+    let esp_wifi_ctrl = &*mk_static!(
         EspWifiController<'static>,
         init(timg0.timer0, rng.clone(), peripherals.RADIO_CLK).unwrap()
     );
 
-    let wifi = peripherals.WIFI;
-    let (wifi_interface, controller) =
-        esp_wifi::wifi::new_with_mode(&init, wifi, WifiStaDevice).unwrap();
-
-    let systimer = SystemTimer::new(peripherals.SYSTIMER).split::<Target>();
-    esp_hal_embassy::init(systimer.alarm0);
+    let (controller, interfaces) = esp_wifi::wifi::new(&esp_wifi_ctrl, peripherals.WIFI).unwrap();
+    let wifi_interface = interfaces.sta;
 
     // Create a new peripheral object with the described wiring
     // and standard I2C clock speed
     let i2c0 = I2c::new(peripherals.I2C0, Config::default())
+        .unwrap()
         .with_sda(peripherals.GPIO1)
         .with_scl(peripherals.GPIO2)
         .into_async();
+
+    let timg1 = TimerGroup::new(peripherals.TIMG1);
+    esp_hal_embassy::init(timg1.timer0);
 
     let config = EmbassyNetConfig::dhcpv4(Default::default());
 
     let seed = (rng.random() as u64) << 32 | rng.random() as u64;
 
     // Init network stack
-    let stack = &*mk_static!(
-        Stack<WifiDevice<'_, WifiStaDevice>>,
-        Stack::new(
-            wifi_interface,
-            config,
-            mk_static!(StackResources<3>, StackResources::<3>::new()),
-            seed
-        )
+    let (stack, runner) = embassy_net::new(
+        wifi_interface,
+        config,
+        mk_static!(StackResources<3>, StackResources::<3>::new()),
+        seed,
     );
 
     spawner.spawn(connection(controller)).ok();
-    spawner.spawn(net_task(&stack)).ok();
+    spawner.spawn(net_task(runner)).ok();
 
     let mut rx_buffer = [0; 4096];
     let mut tx_buffer = [0; 4096];
@@ -177,7 +166,7 @@ async fn main(spawner: Spawner) -> ! {
     loop {
         Timer::after(Duration::from_millis(1_000)).await;
 
-        let mut socket = TcpSocket::new(&stack, &mut rx_buffer, &mut tx_buffer);
+        let mut socket = TcpSocket::new(stack, &mut rx_buffer, &mut tx_buffer);
 
         socket.set_timeout(Some(embassy_time::Duration::from_secs(10)));
 
