@@ -6,25 +6,25 @@ edition = "2021"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-esp-hal = { version = "1.0.0-beta.0", features = ["esp32c3", "unstable"] }
-esp-wifi = { version = "0.13.0", features = [
+esp-hal = { version = "1.0.0-beta.1", features = ["esp32c3", "unstable"] }
+esp-wifi = { version = "0.14.1", features = [
     "esp32c3",
     "wifi",
     "esp-alloc",
-    "log",
+    "log-04",
 ] }
-esp-alloc = { version = "0.7.0" }
-log = "0.4.22"
+esp-alloc = { version = "0.8.0" }
+log = "0.4.27"
 heapless = "0.8.0"
-esp-backtrace = { version = "0.15.1", features = [
+esp-backtrace = { version = "0.16.0", features = [
     "esp32c3",
     "exception-handler",
     "panic-handler",
     "println",
 ] }
-esp-hal-embassy = { version = "0.7.0", features = ["esp32c3"] }
-esp-println = { version = "0.13.1", features = ["esp32c3", "log"] }
-embassy-net = { version = "0.6.0", features = [
+esp-hal-embassy = { version = "0.8.1", features = ["esp32c3"] }
+esp-println = { version = "0.14.0", features = ["esp32c3", "log-04"] }
+embassy-net = { version = "0.7.0", features = [
     "tcp",
     "udp",
     "dhcpv4",
@@ -33,6 +33,7 @@ embassy-net = { version = "0.6.0", features = [
     "log",
     "dns",
 ] }
+esp-bootloader-esp-idf = "0.1.0"
 embassy-executor = { version = "0.7.0", features = ["task-arena-size-20480"] }
 embassy-time = "0.4.0"
 embedded-hal-async = { version = "1.0.0" }
